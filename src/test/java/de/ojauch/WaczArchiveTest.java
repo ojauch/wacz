@@ -3,9 +3,9 @@ package de.ojauch;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
+import java.time.ZonedDateTime;
 
-import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
-import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.*;
 
 public class WaczArchiveTest {
     @Test
@@ -46,5 +46,30 @@ public class WaczArchiveTest {
                 .getResource("no-pages.wacz").getFile());
         WaczArchive noArchivesArchive = new WaczArchive(noPagesFile);
         assertThrows(InvalidWaczException.class, noArchivesArchive::validate);
+    }
+
+    @Test
+    public void testGetMetadata() throws Exception {
+        File validWaczFile = new File(getClass().getClassLoader()
+                .getResource("valid-example.wacz").getFile());
+        WaczArchive archive = new WaczArchive(validWaczFile);
+        WaczMetadata metadata = archive.getMetadata();
+
+        assertEquals("1.1.1", metadata.waczVersion());
+        assertTrue(metadata.title().isPresent());
+        assertEquals("valid-example", metadata.title().get());
+        assertTrue(metadata.software().isPresent());
+        assertEquals("Webrecorder ArchiveWeb.page 0.10.1, using warcio.js 2.1.0", metadata.software().get());
+        assertFalse(metadata.description().isPresent());
+        assertTrue(metadata.created().isPresent());
+        assertTrue(metadata.modified().isPresent());
+    }
+
+    @Test
+    public void testGetMetadataInvalid() {
+        File noDatapackageFile = new File(getClass().getClassLoader()
+                .getResource("no-datapackage.wacz").getFile());
+        WaczArchive noDatapackageArchive = new WaczArchive(noDatapackageFile);
+        assertThrows(InvalidWaczException.class, noDatapackageArchive::getMetadata);
     }
 }

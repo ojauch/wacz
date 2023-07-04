@@ -8,10 +8,9 @@ import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
 
 import java.io.*;
-import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.List;
-import java.util.Set;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeParseException;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
@@ -79,6 +78,86 @@ public class WaczArchive {
         if (indexEntries.size() == 0) {
             throw new InvalidWaczException("wacz contains no indexes");
         }
+    }
+
+    public WaczMetadata getMetadata() throws InvalidWaczException, IOException {
+        JsonNode datapackage = getDatapackage();
+
+        WaczMetadata.Builder metadataBuilder = new WaczMetadata.Builder();
+
+        if (datapackage.has("wacz_version") && datapackage.get("wacz_version").isTextual()) {
+            metadataBuilder.setWaczVersion(datapackage.get("wacz_version").asText());
+        }
+
+        if (datapackage.has("title") && datapackage.get("title").isTextual()) {
+            metadataBuilder.setTitle(datapackage.get("title").asText());
+        }
+
+        if (datapackage.has("description") && datapackage.get("description").isTextual()) {
+            metadataBuilder.setDescription(datapackage.get("description").asText());
+        }
+
+        if (datapackage.has("created") && datapackage.get("created").isTextual()) {
+            String dateString = datapackage.get("created").asText();
+
+            try {
+                ZonedDateTime createdDate = ZonedDateTime.parse(dateString);
+                metadataBuilder.setCreated(createdDate);
+            } catch (DateTimeParseException e) {
+                throw new InvalidWaczException("created value is not a valid date string");
+            }
+        }
+
+        if (datapackage.has("modified") && datapackage.get("modified").isTextual()) {
+            String dateString = datapackage.get("modified").asText();
+
+            try {
+                ZonedDateTime modifiedDate = ZonedDateTime.parse(dateString);
+                metadataBuilder.setModified(modifiedDate);
+            } catch (DateTimeParseException e) {
+                throw new InvalidWaczException("modified value is not a valid date string");
+            }
+        }
+
+        if (datapackage.has("software") && datapackage.get("software").isTextual()) {
+            metadataBuilder.setSoftware(datapackage.get("software").asText());
+        }
+
+        if (datapackage.has("mainPageUrl") && datapackage.get("mainPageUrl").isTextual()) {
+            metadataBuilder.setMainPageUrl(datapackage.get("mainPageUrl").asText());
+        }
+
+        if (datapackage.has("mainPageDate") && datapackage.get("mainPageDate").isTextual()) {
+            String dateString = datapackage.get("mainPageDate").asText();
+
+            try {
+                ZonedDateTime mainPageDate = ZonedDateTime.parse(dateString);
+                metadataBuilder.setMainPageDate(mainPageDate);
+            } catch (DateTimeParseException e) {
+                throw new InvalidWaczException("mainPageDate value is not a valid date string");
+            }
+        }
+
+        return metadataBuilder.build();
+    }
+
+    private JsonNode getDatapackage() throws InvalidWaczException, IOException {
+        ZipFile zipFile = getZipFile();
+        ZipEntry datapackageEntry = zipFile.getEntry("datapackage.json");
+        if (datapackageEntry == null) {
+            throw new InvalidWaczException("datapackage.json does not exist");
+        }
+
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode datapackage;
+
+        try {
+            datapackage = mapper.readTree(zipFile.getInputStream(datapackageEntry));
+        } catch (Exception e) {
+            throw new InvalidWaczException("datapackage.json is no valid json");
+        }
+
+        return datapackage;
     }
 
     private void validateDatapackage(InputStream datapackageInputStream) throws InvalidWaczException {
