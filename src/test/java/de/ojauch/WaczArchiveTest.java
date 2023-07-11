@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.File;
 import java.time.ZonedDateTime;
+import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -71,5 +72,26 @@ public class WaczArchiveTest {
                 .getResource("no-datapackage.wacz").getFile());
         WaczArchive noDatapackageArchive = new WaczArchive(noDatapackageFile);
         assertThrows(InvalidWaczException.class, noDatapackageArchive::getMetadata);
+    }
+
+    @Test
+    public void testVerifyChecksums() throws Exception {
+        File validWaczFile = new File(getClass().getClassLoader()
+                .getResource("valid-example.wacz").getFile());
+        WaczArchive archive = new WaczArchive(validWaczFile);
+        Map<String, Boolean> checksums = archive.verifyChecksums();
+
+        for (String path : checksums.keySet()) {
+            assertTrue(checksums.get(path), "Checksum of file " + path + " should match");
+        }
+    }
+
+    @Test
+    public void testVerifyChecksumsInvalidChecksum() throws Exception {
+        File invalidWaczFile = new File(getClass().getClassLoader()
+                .getResource("invalid-checksum.wacz").getFile());
+        WaczArchive archive = new WaczArchive(invalidWaczFile);
+        Map<String, Boolean> checksums = archive.verifyChecksums();
+        assertFalse(checksums.get("archive/data.warc.gz"));
     }
 }

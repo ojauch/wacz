@@ -2,12 +2,18 @@ package de.ojauch;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.networknt.schema.JsonSchema;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
+import org.apache.commons.codec.binary.Hex;
 
 import java.io.*;
+import java.math.BigInteger;
+import java.security.DigestInputStream;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.*;
@@ -80,68 +86,109 @@ public class WaczArchive {
         }
     }
 
+    /**
+     * Get metadata of the wacz archive from the datapackage file
+     *
+     * @return a wacz metadata object
+     * @throws InvalidWaczException if the datapackage was invalid or not found
+     * @throws IOException if a file wasn't readable
+     */
     public WaczMetadata getMetadata() throws InvalidWaczException, IOException {
-        JsonNode datapackage = getDatapackage();
+        Datapackage datapackage = getDatapackage();
 
         WaczMetadata.Builder metadataBuilder = new WaczMetadata.Builder();
 
-        if (datapackage.has("wacz_version") && datapackage.get("wacz_version").isTextual()) {
-            metadataBuilder.setWaczVersion(datapackage.get("wacz_version").asText());
+        if (datapackage.getWaczVersion() != null) {
+            metadataBuilder.setWaczVersion(datapackage.getWaczVersion());
         }
 
-        if (datapackage.has("title") && datapackage.get("title").isTextual()) {
-            metadataBuilder.setTitle(datapackage.get("title").asText());
+        if (datapackage.getTitle() != null) {
+            metadataBuilder.setTitle(datapackage.getTitle());
         }
 
-        if (datapackage.has("description") && datapackage.get("description").isTextual()) {
-            metadataBuilder.setDescription(datapackage.get("description").asText());
+        if (datapackage.getDescription() != null) {
+            metadataBuilder.setDescription(datapackage.getDescription());
         }
 
-        if (datapackage.has("created") && datapackage.get("created").isTextual()) {
-            String dateString = datapackage.get("created").asText();
-
-            try {
-                ZonedDateTime createdDate = ZonedDateTime.parse(dateString);
-                metadataBuilder.setCreated(createdDate);
-            } catch (DateTimeParseException e) {
-                throw new InvalidWaczException("created value is not a valid date string");
-            }
+        if (datapackage.getCreated() != null) {
+            metadataBuilder.setCreated(datapackage.getCreated());
         }
 
-        if (datapackage.has("modified") && datapackage.get("modified").isTextual()) {
-            String dateString = datapackage.get("modified").asText();
-
-            try {
-                ZonedDateTime modifiedDate = ZonedDateTime.parse(dateString);
-                metadataBuilder.setModified(modifiedDate);
-            } catch (DateTimeParseException e) {
-                throw new InvalidWaczException("modified value is not a valid date string");
-            }
+        if (datapackage.getModified() != null) {
+            metadataBuilder.setModified(datapackage.getModified());
         }
 
-        if (datapackage.has("software") && datapackage.get("software").isTextual()) {
-            metadataBuilder.setSoftware(datapackage.get("software").asText());
+        if (datapackage.getSoftware() != null) {
+            metadataBuilder.setSoftware(datapackage.getSoftware());
         }
 
-        if (datapackage.has("mainPageUrl") && datapackage.get("mainPageUrl").isTextual()) {
-            metadataBuilder.setMainPageUrl(datapackage.get("mainPageUrl").asText());
+        if (datapackage.getMainPageUrl() != null) {
+            metadataBuilder.setMainPageUrl(datapackage.getMainPageUrl());
         }
 
-        if (datapackage.has("mainPageDate") && datapackage.get("mainPageDate").isTextual()) {
-            String dateString = datapackage.get("mainPageDate").asText();
-
-            try {
-                ZonedDateTime mainPageDate = ZonedDateTime.parse(dateString);
-                metadataBuilder.setMainPageDate(mainPageDate);
-            } catch (DateTimeParseException e) {
-                throw new InvalidWaczException("mainPageDate value is not a valid date string");
-            }
+        if (datapackage.getMainPageDate() != null) {
+            metadataBuilder.setMainPageDate(datapackage.getMainPageDate());
         }
 
         return metadataBuilder.build();
     }
 
-    private JsonNode getDatapackage() throws InvalidWaczException, IOException {
+    /**
+     * Verify checksums of datapackage resources
+     *
+     * @return map with file paths as keys and true if the checksum did match and false otherwise
+     * @throws InvalidWaczException if the datapackage was invalid
+     * @throws IOException if a file was not found or wasn't readable
+     * @throws NoSuchAlgorithmException if the datapackage used a hashing algo that is not supported by the java
+     *      platform
+     */
+    public Map<String, Boolean> verifyChecksums() throws InvalidWaczException, IOException, NoSuchAlgorithmException {
+        Map<String, Boolean> checksums = new HashMap<>();
+
+        Datapackage datapackage = getDatapackage();
+        ZipFile zipFile = getZipFile();
+
+        if (datapackage.getResources() == null) {
+            throw new InvalidWaczException("resources property must be set");
+        }
+
+        for (Resource resource : datapackage.getResources()) {
+            if (resource.getHash() == null) {
+                continue;
+            }
+
+            String[] hashParts = resource.getHash().split(":", 2);
+
+            String hashAlgo;
+            String hashValue;
+
+            if (hashParts.length == 1) {
+                hashAlgo = "MD5";
+                hashValue = hashParts[0];
+            } else {
+                hashAlgo = hashParts[0];
+                hashValue = hashParts[1];
+            }
+
+            ZipEntry entry = zipFile.getEntry(resource.getPath());
+            InputStream is = zipFile.getInputStream(entry);
+
+            MessageDigest messageDigest = MessageDigest.getInstance(hashAlgo);
+
+            try (DigestInputStream dis = new DigestInputStream(is, messageDigest)) {
+                while (dis.read() != -1) {
+                }
+            }
+            byte[] digest = messageDigest.digest();
+            String strDigest = Hex.encodeHexString(digest);
+
+            checksums.put(resource.getPath(), strDigest.equals(hashValue));
+        }
+
+        return checksums;
+    }
+
+    private Datapackage getDatapackage() throws InvalidWaczException, IOException {
         ZipFile zipFile = getZipFile();
         ZipEntry datapackageEntry = zipFile.getEntry("datapackage.json");
         if (datapackageEntry == null) {
@@ -149,10 +196,11 @@ public class WaczArchive {
         }
 
         ObjectMapper mapper = new ObjectMapper();
-        JsonNode datapackage;
+        mapper.registerModule(new JavaTimeModule());
+        Datapackage datapackage;
 
         try {
-            datapackage = mapper.readTree(zipFile.getInputStream(datapackageEntry));
+            datapackage = mapper.readValue(zipFile.getInputStream(datapackageEntry), Datapackage.class);
         } catch (Exception e) {
             throw new InvalidWaczException("datapackage.json is no valid json");
         }
