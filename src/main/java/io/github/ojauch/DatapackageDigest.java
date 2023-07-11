@@ -1,4 +1,4 @@
-package de.ojauch;
+package io.github.ojauch;
 
 public class DatapackageDigest {
     private String path;

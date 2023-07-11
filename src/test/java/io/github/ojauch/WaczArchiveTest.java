@@ -1,4 +1,4 @@
-package de.ojauch;
+package io.github.ojauch;
 
 import org.junit.jupiter.api.Test;
 

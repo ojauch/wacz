@@ -1,4 +1,4 @@
-package de.ojauch;
+package io.github.ojauch;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
 

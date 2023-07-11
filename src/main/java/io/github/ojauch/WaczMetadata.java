@@ -1,4 +1,4 @@
-package de.ojauch;
+package io.github.ojauch;
 
 import java.time.ZonedDateTime;
 import java.util.Optional;
