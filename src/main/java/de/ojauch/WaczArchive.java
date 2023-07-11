@@ -10,12 +10,9 @@ import com.networknt.schema.ValidationMessage;
 import org.apache.commons.codec.binary.Hex;
 
 import java.io.*;
-import java.math.BigInteger;
 import java.security.DigestInputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.time.ZonedDateTime;
-import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

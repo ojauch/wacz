@@ -3,7 +3,6 @@ package de.ojauch;
 import org.junit.jupiter.api.Test;
 
 import java.io.File;
-import java.time.ZonedDateTime;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
