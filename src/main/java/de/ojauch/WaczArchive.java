@@ -7,11 +7,8 @@ import com.networknt.schema.JsonSchema;
 import com.networknt.schema.JsonSchemaFactory;
 import com.networknt.schema.SpecVersion;
 import com.networknt.schema.ValidationMessage;
-import org.apache.commons.codec.binary.Hex;
 
 import java.io.*;
-import java.security.DigestInputStream;
-import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -154,32 +151,32 @@ public class WaczArchive {
                 continue;
             }
 
-            String[] hashParts = resource.getHash().split(":", 2);
-
-            String hashAlgo;
-            String hashValue;
-
-            if (hashParts.length == 1) {
-                hashAlgo = "MD5";
-                hashValue = hashParts[0];
-            } else {
-                hashAlgo = hashParts[0];
-                hashValue = hashParts[1];
-            }
+            HashValue hashValue = HashingHelper.getHashValue(resource.getHash());
 
             ZipEntry entry = zipFile.getEntry(resource.getPath());
             InputStream is = zipFile.getInputStream(entry);
 
-            MessageDigest messageDigest = MessageDigest.getInstance(hashAlgo);
+            String strDigest = HashingHelper.calculateChecksum(is, hashValue.getAlgorithm());
 
-            try (DigestInputStream dis = new DigestInputStream(is, messageDigest)) {
-                while (dis.read() != -1) {
-                }
-            }
-            byte[] digest = messageDigest.digest();
-            String strDigest = Hex.encodeHexString(digest);
+            checksums.put(resource.getPath(), strDigest.equals(hashValue.getValue()));
+        }
 
-            checksums.put(resource.getPath(), strDigest.equals(hashValue));
+        // verify datapackage.json checksum if datapackage-digest.json exists
+        ZipEntry datapackageDigestEntry = zipFile.getEntry("datapackage-digest.json");
+        if (datapackageDigestEntry != null) {
+            ObjectMapper mapper = new ObjectMapper();
+            mapper.registerModule(new JavaTimeModule());
+            DatapackageDigest datapackageDigest = mapper.readValue(zipFile.getInputStream(datapackageDigestEntry),
+                    DatapackageDigest.class);
+
+            HashValue hashValue = HashingHelper.getHashValue(datapackageDigest.getHash());
+
+            ZipEntry entry = zipFile.getEntry("datapackage.json");
+            InputStream is = zipFile.getInputStream(entry);
+
+            String strDigest = HashingHelper.calculateChecksum(is, hashValue.getAlgorithm());
+
+            checksums.put("datapackage.json", strDigest.equals(hashValue.getValue()));
         }
 
         return checksums;

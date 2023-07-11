@@ -83,6 +83,8 @@ public class WaczArchiveTest {
         for (String path : checksums.keySet()) {
             assertTrue(checksums.get(path), "Checksum of file " + path + " should match");
         }
+
+        assertTrue(checksums.containsKey("datapackage.json"));
     }
 
     @Test
